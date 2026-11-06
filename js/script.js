@@ -4,7 +4,7 @@
 /* ---- CONFIG: edit contact details, social links and booking endpoint here ---- */
 const RESORT = {
   name: 'Marshyangdi River View Resort',
-  logo: 'photos/logo.png', // put your logo file here (PNG/SVG, transparent background)
+  logo: 'Photos/logo.png', // put your logo file here (PNG/SVG, transparent background)
   address: 'Yampa Dhab( Prithivi Highway),Bandipur-5, Tanahun, Nepal',
   phone: '+977 9856041201',
   email: 'info@marshyangdiresort.com',
