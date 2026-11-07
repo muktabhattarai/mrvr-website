@@ -14,7 +14,7 @@ const RESORT = {
   // Footer "Follow" links. Paste your full page links. Leave a value as '' to hide that link.
   social: {
     facebook: 'https://www.facebook.com/',   // TODO: replace with your Facebook page link
-    tiktok: 'https://www.tiktok.com/@marshyangdi3?_r=1&_t=ZS-9B8qPGttn5M', 
+    instagram: 'https://www.instagram.com/', // TODO: replace with your Instagram profile link
     tripadvisor: '',                          // optional: your TripAdvisor page link
   },
   bookingEndpoint: null, // e.g. '/api/bookings' once a backend exists
@@ -34,7 +34,7 @@ function renderChrome() {
     <nav aria-label="Main"><ul class="menu" id="menu">${links}</ul></nav></div></header>`;
   const foot = NAV.map(([h, t]) => `<li><a href="${h}">${t}</a></li>`).join('');
   const pin = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor" style="display:inline-block;vertical-align:-2px;margin-right:.4rem"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>';
-  const social = [['Facebook', RESORT.social.facebook], ['Tiktok', RESORT.social.tiktok], ['TripAdvisor', RESORT.social.tripadvisor]]
+  const social = [['Facebook', RESORT.social.facebook], ['Instagram', RESORT.social.instagram], ['TripAdvisor', RESORT.social.tripadvisor]]
     .filter(([, url]) => url)
     .map(([n, url]) => `<li><a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${n} (opens in a new tab)">${n}</a></li>`).join('');
   $('#site-footer').innerHTML = `<footer class="footer"><div class="wrap"><div class="fgrid">
@@ -56,26 +56,80 @@ function initNav() {
   addEventListener('keydown', e => e.key === 'Escape' && set(false));
 }
 
-/* ---- Hero slideshow ---- */
+/* ---- Hero slideshow (slides that contain <video>; iPhone Safari compatible) ---- */
 function initHero() {
-  const hero = $('.hero[data-slider]'); if (!hero) return;
-  const slides = $$('.slide', hero), dots = $('.dots', hero), count = $('.count', hero);
-  const DELAY = 7000; let i = 0, timer;
-  slides.forEach((_, n) => { const b = document.createElement('button'); b.className = 'dot'; b.setAttribute('aria-label', `Show slide ${n + 1}`); b.onclick = () => { go(n); restart(); }; dots.append(b); });
+  const hero = $('.hero[data-slider]');
+  if (!hero) return;
+
+  const slides = $$('.slide', hero);
+  if (!slides.length) return;
+  const dots = $('.dots', hero), count = $('.count', hero);
+  const prev = $('.prev', hero), next = $('.next', hero);
+
+  const DELAY = 7000;
+  let i = 0, timer;
+
+  // Start only the active slide's video, pause the rest
+  const playActiveVideo = () => {
+    slides.forEach((slide, index) => {
+      const video = $('video', slide);
+      if (!video) return;
+      if (index === i) {
+        video.muted = true;
+        video.playsInline = true;
+        const p = video.play();
+        if (p !== undefined) p.catch(err => console.warn('Video playback failed:', err));
+      } else {
+        video.pause();
+      }
+    });
+  };
+
   const go = n => {
     i = (n + slides.length) % slides.length;
     slides.forEach((s, k) => s.classList.toggle('active', k === i));
-    $$('.dot', dots).forEach((d, k) => d.setAttribute('aria-current', k === i));
-    count.innerHTML = `${String(i + 1).padStart(2, '0')} <span>/ ${String(slides.length).padStart(2, '0')}</span>`;
+    if (dots) $$('.dot', dots).forEach((d, k) => d.setAttribute('aria-current', k === i));
+    if (count) count.innerHTML = `${String(i + 1).padStart(2, '0')} <span>/ ${String(slides.length).padStart(2, '0')}</span>`;
+    playActiveVideo();
   };
-  const restart = () => { clearInterval(timer); if (!matchMedia('(prefers-reduced-motion:reduce)').matches) timer = setInterval(() => go(i + 1), DELAY); };
-  $('.prev', hero).onclick = () => { go(i - 1); restart(); };
-  $('.next', hero).onclick = () => { go(i + 1); restart(); };
-  hero.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') $('.prev', hero).click(); if (e.key === 'ArrowRight') $('.next', hero).click(); });
-  document.addEventListener('visibilitychange', () => document.hidden ? clearInterval(timer) : restart());
+
+  const restart = () => {
+    clearInterval(timer);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) timer = setInterval(() => go(i + 1), DELAY);
+  };
+
+  if (dots) slides.forEach((_, n) => {
+    const b = document.createElement('button');
+    b.className = 'dot';
+    b.setAttribute('aria-label', `Show slide ${n + 1}`);
+    b.onclick = () => { go(n); restart(); };
+    dots.append(b);
+  });
+  if (prev) prev.onclick = () => { go(i - 1); restart(); };
+  if (next) next.onclick = () => { go(i + 1); restart(); };
+
+  hero.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' && prev) prev.click();
+    if (e.key === 'ArrowRight' && next) next.click();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearInterval(timer);
+      slides.forEach(slide => { const v = $('video', slide); if (v) v.pause(); });
+    } else {
+      playActiveVideo();
+      restart();
+    }
+  });
+
   // subtle parallax on scroll
-  addEventListener('scroll', () => { if (scrollY < innerHeight) hero.style.setProperty('--py', `${scrollY * .12}px`); }, { passive: true });
-  go(0); restart();
+  addEventListener('scroll', () => {
+    if (scrollY < innerHeight) hero.style.setProperty('--py', `${scrollY * .12}px`);
+  }, { passive: true });
+
+  go(0);
+  restart();
 }
 
 /* ---- Scroll reveal ---- */
@@ -159,25 +213,54 @@ function initBooking() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  renderChrome(); initNav(); initHero(); initReveal(); initLightbox(); initBooking(); initImages();
-});
-
 /* ---- Hero video switcher: change SECONDS to set how long each clip shows ---- */
-document.addEventListener('DOMContentLoaded', () => {
-  const vids = [...document.querySelectorAll('.hero .hv')];
-  if (vids.length < 2) return;
+/* iPhone Safari notes: videos must be muted + playsinline (set as real attributes), autoplay can be
+   blocked in Low Power Mode until the first touch, and 8 clips must not all download at once. */
+function initHeroVideos() {
+  const vids = $$('.hero .hv');
+  if (!vids.length) return;
   const SECONDS = 3;
-  let i = 0;
-  vids.forEach(v => { v.muted = true; v.volume = 0; });
-  vids[0].play().catch(() => {});
-  setInterval(() => {
-    const cur = vids[i], next = vids[(i + 1) % vids.length];
-    next.currentTime = 0;
-    next.play().catch(() => {});
-    next.classList.add('active');
-    cur.classList.remove('active');
-    setTimeout(() => cur.pause(), 1400);
-    i = (i + 1) % vids.length;
-  }, SECONDS * 1000);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let i = 0, timer, blocked = false;
+
+  vids.forEach((v, n) => {
+    v.muted = true; v.defaultMuted = true; v.volume = 0;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.playsInline = true; v.loop = true; v.disablePictureInPicture = true;
+    v.preload = n < 2 ? 'auto' : 'metadata'; // only the first two download up front
+  });
+
+  const play = v => {
+    const p = v.play();
+    if (p && p.catch) p.catch(() => { blocked = true; });
+  };
+  const rewind = v => { try { v.currentTime = 0; } catch (e) {} };
+
+  const show = n => {
+    const cur = vids[i], nxt = vids[n];
+    if (cur === nxt) return;
+    rewind(nxt); play(nxt);
+    nxt.classList.add('active'); cur.classList.remove('active');
+    setTimeout(() => { if (!cur.classList.contains('active')) cur.pause(); }, 1400);
+    i = n;
+    vids[(i + 1) % vids.length].preload = 'auto'; // warm up the next clip
+  };
+
+  const start = () => { clearInterval(timer); if (!reduce && vids.length > 1) timer = setInterval(() => show((i + 1) % vids.length), SECONDS * 1000); };
+
+  play(vids[0]);
+  start();
+
+  // Low Power Mode / blocked autoplay: retry on the first touch, click or scroll
+  const unlock = () => { if (blocked) { blocked = false; play(vids[i]); } };
+  ['touchstart', 'click', 'scroll'].forEach(ev => addEventListener(ev, unlock, { passive: true, once: true }));
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInterval(timer); vids.forEach(v => v.pause()); }
+    else { play(vids[i]); start(); }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderChrome(); initNav(); initHero(); initHeroVideos(); initReveal(); initLightbox(); initBooking(); initImages();
 });
